@@ -1,11 +1,11 @@
 package com.example.quad2.tweettaggrabber.activities;
 
 import android.app.ProgressDialog;
-import android.support.v7.app.AppCompatActivity;
+import android.content.Intent;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.SearchView;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -14,8 +14,14 @@ import android.widget.EditText;
 import com.example.quad2.tweettaggrabber.R;
 import com.example.quad2.tweettaggrabber.adapter.TweetAdapter;
 import com.example.quad2.tweettaggrabber.interfaces.TwitterApiInterface;
+import com.example.quad2.tweettaggrabber.ottoUtils.BusProvider;
+import com.example.quad2.tweettaggrabber.ottoUtils.DataRefreshEvent;
 import com.example.quad2.tweettaggrabber.pojo.AuthorizationResponse;
-import com.example.quad2.tweettaggrabber.pojo.twitterResponsePojo.ApiResponse;
+import com.example.quad2.tweettaggrabber.pojo.twitterSearchResponse.SearchResponseData;
+import com.example.quad2.tweettaggrabber.pojo.twitterSearchResponse.Status;
+import com.example.quad2.tweettaggrabber.services.UpdateTweetService;
+import com.squareup.otto.Bus;
+import com.squareup.otto.Subscribe;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,12 +39,14 @@ public class MainActivity extends AppCompatActivity {
     private static final String tweetBaseUrl = "https://api.twitter.com/1.1/search/";
     private static final String authorizebaseUrl = "https://api.twitter.com/oauth2/";
     private String bearerToken, hashTag;
-    private ApiResponse apiResponse;
+    private List<Status> statuses = new ArrayList<>();
     private RecyclerView tweetRv;
     private TweetAdapter adapter;
     private EditText userInput;
     private Button searchBtn;
     private ProgressDialog dialog;
+    private Intent intent;
+    private Bus bus = BusProvider.getInstance();
 
 
     @Override
@@ -51,21 +59,25 @@ public class MainActivity extends AppCompatActivity {
         dialog = new ProgressDialog(this);
         dialog.setMessage("Please Wait...");
         dialog.setCancelable(false);
+        bus.register(this);
 
         searchBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 hashTag = userInput.getText().toString();
-                if (hashTag!=null){
+                if (hashTag != null) {
 
-                    if (hashTag.length()==0){
+                    if (hashTag.length() == 0) {
                         userInput.setError("Please enter a word");
-                    }else if (hashTag.length()>0 && hashTag.contains(" ")){
+                    } else if (hashTag.length() > 0 && hashTag.contains(" ")) {
                         userInput.setError("it can't contain spaces");
-                    }else if (hashTag.length()>0 && hashTag.contains("#")){
+                    } else if (hashTag.length() > 0 && hashTag.contains("#")) {
                         userInput.setError("Please enter the word without #");
                     } else {
                         getTweetData();
+                        intent.putExtra("hashTag", hashTag);
+                        intent.putExtra("bearerToken", bearerToken);
+                        startService(intent);
                     }
 
 
@@ -73,6 +85,29 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         getAccessToken();
+        intent = new Intent(this, UpdateTweetService.class);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        //registerReceiver(getUpdates, new IntentFilter(UpdateTweetService.BROADCAST_ACTION));
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopService(intent);
+        //unregisterReceiver(getUpdates);
+    }
+
+    @Subscribe
+    public void getRefreshedTweets(DataRefreshEvent event) {
+        if (event.getStatuses() != null && event.getStatuses().size() > 0) {
+            statuses.clear();
+            statuses = event.getStatuses();
+            setTweetRv();
+        }
     }
 
     public void getTweetData() {
@@ -86,19 +121,21 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         TwitterApiInterface tweetApi = retrofit.create(TwitterApiInterface.class);
-        Call<ApiResponse> call = tweetApi.getTweets("Bearer " + bearerToken, hashTag, "recent");
-        call.enqueue(new Callback<ApiResponse>() {
+        Call<SearchResponseData> call = tweetApi.getTweets("Bearer " + bearerToken, hashTag, "recent");
+        call.enqueue(new Callback<SearchResponseData>() {
             @Override
-            public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
+            public void onResponse(Call<SearchResponseData> call, Response<SearchResponseData> response) {
                 dialog.dismiss();
                 if (response != null && response.body() != null) {
-                    apiResponse = response.body();
-                    setTweetRv();
+                    if (response.body().getStatuses() != null && response.body().getStatuses().size() > 0) {
+                        statuses = response.body().getStatuses();
+                        setTweetRv();
+                    }
                 }
             }
 
             @Override
-            public void onFailure(Call<ApiResponse> call, Throwable t) {
+            public void onFailure(Call<SearchResponseData> call, Throwable t) {
                 dialog.dismiss();
                 t.printStackTrace();
             }
@@ -145,8 +182,8 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void setTweetRv(){
-        adapter = new TweetAdapter(this, apiResponse.getStatuses());
+    public void setTweetRv() {
+        adapter = new TweetAdapter(this, statuses);
         LinearLayoutManager llm = new LinearLayoutManager(this);
         tweetRv.setHasFixedSize(true);
         tweetRv.setAdapter(adapter);

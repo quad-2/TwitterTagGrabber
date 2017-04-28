@@ -1,7 +1,7 @@
 package com.example.quad2.tweettaggrabber.interfaces;
 
 import com.example.quad2.tweettaggrabber.pojo.AuthorizationResponse;
-import com.example.quad2.tweettaggrabber.pojo.twitterResponsePojo.ApiResponse;
+import com.example.quad2.tweettaggrabber.pojo.twitterSearchResponse.SearchResponseData;
 
 import retrofit2.Call;
 import retrofit2.http.Field;
@@ -18,10 +18,11 @@ import retrofit2.http.Query;
 public interface TwitterApiInterface {
 
     @GET("tweets.json")
-    Call<ApiResponse> getTweets(@Header("Authorization") String authorization,
-                                @Query("q") String hashTag, @Query("result_type") String result_type);
+    Call<SearchResponseData> getTweets(@Header("Authorization") String authorization,
+                                       @Query("q") String hashTag, @Query("result_type") String result_type);
 
     @FormUrlEncoded
     @POST("token")
-    Call<AuthorizationResponse> getBearerToken(@Header("Authorization") String authorization, @Field("grant_type") String grant_type);
+    Call<AuthorizationResponse> getBearerToken(@Header("Authorization") String authorization,
+                                               @Field("grant_type") String grant_type);
 }

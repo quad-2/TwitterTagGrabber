@@ -9,7 +9,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.example.quad2.tweettaggrabber.R;
-import com.example.quad2.tweettaggrabber.pojo.twitterResponsePojo.Status;
+import com.example.quad2.tweettaggrabber.pojo.twitterSearchResponse.Status;
 import com.squareup.picasso.Picasso;
 
 import java.util.ArrayList;
